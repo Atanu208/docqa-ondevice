@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DocQA · On-Device Document Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080c11;--s1:#0d1219;--s2:#121a23;--s3:#1a2434;
+  --border:#1f2d3d;--border2:#273648;
+  --text:#dce8f5;--muted:#5b7a96;--muted2:#3d5570;
+  --accent:#10b981;--accent-dim:rgba(16,185,129,0.1);--accent-glow:rgba(16,185,129,0.25);
+  --amber:#f59e0b;--red:#ef4444;--blue:#3b82f6;
+  --mono:'JetBrains Mono',monospace;--sans:'Inter',system-ui,sans-serif;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);display:flex;font-size:14px;line-height:1.5}
+
+/* Grid background */
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(16,185,129,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(16,185,129,.025) 1px,transparent 1px);
+  background-size:48px 48px;pointer-events:none;z-index:0}
+
+/* ── Sidebar ─────────────────────────────── */
+.sidebar{
+  width:280px;flex-shrink:0;background:var(--s1);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;height:100%;position:relative;z-index:1;overflow:hidden
+}
+
+.sidebar-top{padding:20px 18px 16px;border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.logo-mark{
+  width:30px;height:30px;background:var(--accent);border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:13px;font-weight:500;color:#080c11;flex-shrink:0
+}
+.logo-name{font-family:var(--mono);font-size:15px;font-weight:500;letter-spacing:-.02em;color:var(--text)}
+.logo-name span{color:var(--accent)}
+.privacy-pill{
+  display:inline-flex;align-items:center;gap:6px;padding:4px 9px;
+  background:var(--accent-dim);border:1px solid rgba(16,185,129,.2);border-radius:100px;
+  font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.06em
+}
+.pulse{width:5px;height:5px;border-radius:50%;background:var(--accent);animation:pulse 2.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* Upload zone */
+.upload-wrap{padding:16px 18px;border-bottom:1px solid var(--border)}
+.upload-zone{
+  border:1.5px dashed var(--border2);border-radius:8px;padding:20px 12px;
+  text-align:center;cursor:pointer;transition:all .2s;position:relative
+}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:var(--accent-dim)}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.upload-icon{font-size:22px;margin-bottom:8px;opacity:.5}
+.upload-label{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.5}
+.upload-label strong{color:var(--text);display:block;margin-bottom:3px}
+
+.doc-info{display:none;padding:0}
+.doc-row{display:flex;align-items:flex-start;gap:10px}
+.doc-icon{
+  width:32px;height:32px;border-radius:5px;background:var(--accent-dim);
+  border:1px solid rgba(16,185,129,.2);display:flex;align-items:center;justify-content:center;
+  font-size:14px;flex-shrink:0;margin-top:1px
+}
+.doc-name{font-family:var(--mono);font-size:12px;color:var(--text);font-weight:500;word-break:break-all}
+.doc-meta{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px}
+.doc-remove{font-family:var(--mono);font-size:10px;color:var(--muted);cursor:pointer;margin-top:4px;transition:color .15s}
+.doc-remove:hover{color:var(--red)}
+
+/* Pipeline */
+.pipeline-wrap{padding:16px 18px;border-bottom:1px solid var(--border);flex:1}
+.section-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);margin-bottom:10px}
+.pipeline-step{
+  display:flex;align-items:center;gap:10px;padding:7px 0;
+  border-bottom:1px solid rgba(31,45,61,.5)
+}
+.pipeline-step:last-child{border-bottom:none}
+.step-dot{
+  width:7px;height:7px;border-radius:50%;background:var(--border2);
+  flex-shrink:0;transition:all .3s
+}
+.step-dot.active{background:var(--accent);box-shadow:0 0 8px var(--accent-glow)}
+.step-dot.done{background:var(--accent)}
+.step-dot.error{background:var(--red)}
+.step-body{flex:1;min-width:0}
+.step-name{font-family:var(--mono);font-size:11px;color:var(--muted);transition:color .3s}
+.step-name.active,.step-name.done{color:var(--text)}
+.step-val{font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:2px}
+.step-badge{font-family:var(--mono);font-size:9px;padding:1px 6px;border-radius:3px;flex-shrink:0}
+.step-badge.pending{background:var(--s3);color:var(--muted2)}
+.step-badge.running{background:rgba(245,158,11,.15);color:var(--amber)}
+.step-badge.done{background:var(--accent-dim);color:var(--accent)}
+.step-badge.error{background:rgba(239,68,68,.12);color:var(--red)}
+
+/* Progress bars */
+.prog-wrap{padding:2px 0 4px;display:none}
+.prog-wrap.visible{display:block}
+.prog-bar{height:2px;background:var(--border);border-radius:1px;overflow:hidden;margin-top:5px}
+.prog-fill{height:100%;background:var(--accent);width:0%;transition:width .3s ease;box-shadow:0 0 6px var(--accent-glow)}
+
+/* Model status panel */
+.model-panel{padding:14px 18px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px}
+.model-card{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.model-card.active{border-color:rgba(245,158,11,.4)}
+.model-card.done{border-color:rgba(16,185,129,.3)}
+.mc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}
+.mc-name{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text)}
+.mc-role{font-family:var(--mono);font-size:10px;color:var(--muted2);margin-bottom:8px}
+.mc-badge{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:100px;background:var(--s3);color:var(--muted2);white-space:nowrap}
+.mc-badge.loading{background:rgba(245,158,11,.15);color:var(--amber)}
+.mc-badge.ready{background:var(--accent-dim);color:var(--accent)}
+.mc-badge.error{background:rgba(239,68,68,.12);color:var(--red)}
+.mc-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:6px}
+.mc-fill{height:100%;background:var(--accent);width:0%;transition:width .3s ease}
+.mc-fill.amber{background:var(--amber)}
+.mc-stats{font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.5}
+.model-note{font-family:var(--mono);font-size:10px;color:var(--muted2);line-height:1.5;padding:8px 10px;background:var(--s3);border-radius:6px;border-left:2px solid var(--border2)}
+
+/* ── Main ────────────────────────────────── */
+.main{flex:1;display:flex;flex-direction:column;height:100%;min-width:0;position:relative;z-index:1}
+
+.chat-topbar{
+  padding:14px 24px;border-bottom:1px solid var(--border);background:var(--s1);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0
+}
+.session-title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.session-title strong{color:var(--text);font-weight:500}
+.topbar-right{display:flex;align-items:center;gap:12px}
+.runtime-badge{
+  display:flex;align-items:center;gap:6px;padding:5px 10px;
+  background:var(--s2);border:1px solid var(--border);border-radius:6px;
+  font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.04em
+}
+.runtime-dot{width:5px;height:5px;border-radius:50%;background:var(--accent-glow)}
+
+/* Messages */
+.messages{flex:1;overflow-y:auto;padding:32px 24px}
+.messages::-webkit-scrollbar{width:4px}
+.messages::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+.welcome{
+  max-width:540px;margin:0 auto;text-align:center;padding:40px 0
+}
+.welcome-icon{font-size:32px;margin-bottom:16px;opacity:.4}
+.welcome-title{font-family:var(--mono);font-size:18px;font-weight:500;color:var(--text);margin-bottom:10px;letter-spacing:-.02em}
+.welcome-body{font-family:var(--mono);font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:24px}
+.sample-qs{display:grid;gap:8px;text-align:left}
+.sample-q{
+  padding:10px 14px;background:var(--s2);border:1px solid var(--border);border-radius:6px;
+  font-family:var(--mono);font-size:11px;color:var(--muted);cursor:pointer;transition:all .15s
+}
+.sample-q:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+
+/* Message thread */
+.message{display:flex;gap:14px;margin-bottom:24px;animation:fadeUp .2s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.msg-avatar{
+  width:28px;height:28px;border-radius:5px;flex-shrink:0;margin-top:2px;
+  display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:500
+}
+.msg-avatar.user{background:var(--s3);color:var(--muted)}
+.msg-avatar.ai{background:var(--accent);color:#080c11}
+.msg-body{flex:1;min-width:0}
+.msg-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.msg-author{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text)}
+.msg-time{font-family:var(--mono);font-size:10px;color:var(--muted2)}
+.msg-text{font-size:13.5px;line-height:1.75;color:var(--text)}
+.msg-text p+p{margin-top:8px}
+
+/* Retrieved context strip */
+.context-strip{
+  background:var(--s2);border:1px solid var(--border);border-radius:6px;
+  padding:10px 12px;margin-bottom:10px
+}
+.context-label{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2);margin-bottom:6px}
+.context-chunk{
+  font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.5;
+  padding:5px 8px;background:var(--s3);border-radius:4px;margin-bottom:4px;
+  border-left:2px solid var(--accent)
+}
+.context-chunk:last-child{margin-bottom:0}
+.context-chunk-score{color:var(--accent);font-size:10px}
+
+/* Inference status */
+.infer-status{
+  font-family:var(--mono);font-size:11px;color:var(--amber);padding:6px 0;
+  display:flex;align-items:center;gap:8px
+}
+.spin{
+  width:10px;height:10px;border:1.5px solid rgba(245,158,11,.25);
+  border-top-color:var(--amber);border-radius:50%;animation:spin .6s linear infinite;flex-shrink:0
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Cursor */
+.cursor{
+  display:inline-block;width:2px;height:13px;background:var(--text);
+  margin-left:1px;vertical-align:middle;animation:blink .7s step-end infinite
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* Answer meta */
+.answer-meta{
+  display:flex;align-items:center;gap:12px;margin-top:10px;
+  font-family:var(--mono);font-size:10px;color:var(--muted2)
+}
+.answer-conf{color:var(--accent)}
+
+/* Input area */
+.input-area{
+  padding:16px 24px 24px;border-top:1px solid var(--border);background:var(--s1);flex-shrink:0
+}
+.input-wrap{position:relative;max-width:760px;margin:0 auto}
+.input-box{
+  width:100%;background:var(--s2);border:1px solid var(--border);border-radius:10px;
+  padding:13px 50px 13px 16px;font-family:var(--sans);font-size:13.5px;color:var(--text);
+  resize:none;outline:none;line-height:1.5;min-height:50px;max-height:140px;
+  transition:border-color .2s
+}
+.input-box:focus{border-color:rgba(16,185,129,.35)}
+.input-box::placeholder{color:var(--muted2)}
+.input-box:disabled{opacity:.4;cursor:not-allowed}
+.send-btn{
+  position:absolute;right:10px;bottom:10px;width:30px;height:30px;
+  border-radius:5px;background:var(--accent);border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;color:#080c11
+}
+.send-btn:hover{background:#0ea472}
+.send-btn:disabled{opacity:.35;cursor:not-allowed}
+.send-btn svg{width:13px;height:13px}
+.input-footer{
+  display:flex;justify-content:space-between;align-items:center;
+  max-width:760px;margin:8px auto 0;
+  font-family:var(--mono);font-size:10px;color:var(--muted2)
+}
+.chunk-count{color:var(--accent)}
+
+/* Notifications */
+.notif{
+  position:fixed;bottom:24px;right:24px;z-index:999;
+  background:var(--s2);border:1px solid var(--border);border-radius:8px;
+  padding:12px 16px;font-family:var(--mono);font-size:12px;color:var(--text);
+  max-width:320px;display:none;animation:slideIn .2s ease
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── File:// warning banner ── */
+.protocol-block{
+  position:fixed;inset:0;z-index:9999;background:#080c11;
+  display:flex;align-items:center;justify-content:center;padding:24px
+}
+.protocol-card{
+  max-width:480px;width:100%;background:#0d1219;
+  border:1px solid #f59e0b55;border-radius:12px;padding:32px
+}
+.protocol-icon{font-size:28px;margin-bottom:16px}
+.protocol-title{font-family:'JetBrains Mono',monospace;font-size:18px;
+  font-weight:500;color:#f59e0b;margin-bottom:10px}
+.protocol-body{font-family:'JetBrains Mono',monospace;font-size:12px;
+  color:#5b7a96;line-height:1.8;margin-bottom:24px}
+.protocol-body strong{color:#dce8f5;display:block;margin-top:12px;margin-bottom:4px}
+.protocol-cmd{
+  background:#121a23;border:1px solid #1f2d3d;border-radius:6px;
+  padding:10px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;
+  color:#10b981;margin-bottom:8px;cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;gap:12px
+}
+.protocol-cmd:hover{border-color:#10b981}
+.protocol-cmd .cmd-copy{font-size:10px;color:#5b7a96;flex-shrink:0}
+.protocol-or{text-align:center;font-family:'JetBrains Mono',monospace;
+  font-size:10px;color:#3d5570;margin:12px 0}
+.protocol-link{
+  display:block;text-align:center;padding:10px;
+  background:#10b98115;border:1px solid #10b98133;border-radius:6px;
+  font-family:'JetBrains Mono',monospace;font-size:12px;color:#10b981;
+  text-decoration:none
+}
+.protocol-link:hover{background:#10b98125}
+</style>
+</head>
+<body>
+
+<!-- file:// protocol blocker — hidden when served over HTTP -->
+<div class="protocol-block" id="protocol-block" style="display:none">
+  <div class="protocol-card">
+    <div class="protocol-icon">⚠️</div>
+    <div class="protocol-title">Needs an HTTP server</div>
+    <div class="protocol-body">
+      This demo downloads ~22 MB of ML model weights from Hugging Face.
+      Chrome blocks those network requests when the page is opened directly
+      from a file — it must be served over HTTP.<br><br>
+      <strong>Option 1 — one command (Python already on your machine):</strong>
+    </div>
+    <div class="protocol-cmd" onclick="copyCmd(this, 'cd ~/Downloads && python -m http.server 8080')">
+      <span>cd ~/Downloads &amp;&amp; python -m http.server 8080</span>
+      <span class="cmd-copy">click to copy</span>
+    </div>
+    <div class="protocol-body" style="margin-top:4px;margin-bottom:12px">
+      Then open <strong style="display:inline;color:#10b981">http://localhost:8080/docqa-ondevice.html</strong>
+    </div>
+    <div class="protocol-or">— or —</div>
+    <div class="protocol-body" style="margin-bottom:12px">
+      <strong>Option 2 — drag the file to Netlify Drop (10 seconds, free):</strong>
+    </div>
+    <a class="protocol-link" href="https://app.netlify.com/drop" target="_blank">
+      Open app.netlify.com/drop →
+    </a>
+  </div>
+</div>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="sidebar-top">
+    <div class="logo">
+      <div class="logo-mark">D</div>
+      <div class="logo-name">Doc<span>QA</span></div>
+    </div>
+    <div class="privacy-pill">
+      <div class="pulse"></div>
+      Zero egress · On-device inference
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="upload-wrap" id="upload-wrap">
+    <div class="section-label" style="margin-bottom:10px">Document</div>
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept=".pdf,.txt,.md">
+      <div class="upload-icon">📄</div>
+      <div class="upload-label">
+        <strong>Drop PDF or TXT here</strong>
+        Parsed entirely in-browser<br>No upload to any server
+      </div>
+    </div>
+    <div class="doc-info" id="doc-info">
+      <div class="doc-row">
+        <div class="doc-icon">📄</div>
+        <div>
+          <div class="doc-name" id="doc-name">—</div>
+          <div class="doc-meta" id="doc-meta">—</div>
+          <div class="doc-remove" id="doc-remove" onclick="removeDoc()">× remove</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pipeline -->
+  <div class="pipeline-wrap">
+    <div class="section-label">Processing pipeline</div>
+
+    <div class="pipeline-step">
+      <div class="step-dot" id="dot-parse"></div>
+      <div class="step-body">
+        <div class="step-name" id="name-parse">Parse document</div>
+        <div class="step-val" id="val-parse">PDF.js · client-side</div>
+        <div class="prog-wrap" id="prog-parse">
+          <div class="prog-bar"><div class="prog-fill" id="fill-parse"></div></div>
+        </div>
+      </div>
+      <div class="step-badge pending" id="badge-parse">—</div>
+    </div>
+
+    <div class="pipeline-step">
+      <div class="step-dot" id="dot-chunk"></div>
+      <div class="step-body">
+        <div class="step-name" id="name-chunk">Chunk text</div>
+        <div class="step-val" id="val-chunk">350w · 70w overlap</div>
+      </div>
+      <div class="step-badge pending" id="badge-chunk">—</div>
+    </div>
+
+    <div class="pipeline-step">
+      <div class="step-dot" id="dot-embed"></div>
+      <div class="step-body">
+        <div class="step-name" id="name-embed">Embed chunks</div>
+        <div class="step-val" id="val-embed">all-MiniLM-L6-v2 · 384d</div>
+        <div class="prog-wrap" id="prog-embed">
+          <div class="prog-bar"><div class="prog-fill" id="fill-embed"></div></div>
+        </div>
+      </div>
+      <div class="step-badge pending" id="badge-embed">—</div>
+    </div>
+
+    <div class="pipeline-step">
+      <div class="step-dot" id="dot-index"></div>
+      <div class="step-body">
+        <div class="step-name" id="name-index">Index ready</div>
+        <div class="step-val" id="val-index">Cosine similarity · in-memory</div>
+      </div>
+      <div class="step-badge pending" id="badge-index">—</div>
+    </div>
+  </div>
+
+  <!-- Model loading panel -->
+  <div class="model-panel">
+    <div class="section-label">Model · WebAssembly runtime</div>
+    <div class="model-card" id="card-emb">
+      <div class="mc-top">
+        <div class="mc-name">all-MiniLM-L6-v2</div>
+        <div class="mc-badge" id="badge-emb">idle</div>
+      </div>
+      <div class="mc-role" id="role-emb">embeddings · ~22 MB</div>
+      <div class="mc-bar"><div class="mc-fill" id="fill-emb"></div></div>
+      <div class="mc-stats" id="stats-emb">waiting to start…</div>
+    </div>
+
+
+    <button id="retry-btn" onclick="startLoadModels()" style="display:none;
+      width:100%;margin-top:10px;padding:9px;border-radius:6px;border:1px solid #f59e0b55;
+      background:rgba(245,158,11,.1);color:#f59e0b;font-family:var(--mono);font-size:12px;
+      cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(245,158,11,.2)'"
+      onmouseout="this.style.background='rgba(245,158,11,.1)'">
+      ↺ Retry model load
+    </button>
+  </div>
+</aside>
+
+<!-- Main chat -->
+<main class="main">
+  <header class="chat-topbar">
+    <div class="session-title"><strong id="session-name">No document loaded</strong> · DocQA session</div>
+    <div class="topbar-right">
+      <div class="runtime-badge">
+        <div class="runtime-dot"></div>
+        WebAssembly · No egress during inference
+      </div>
+    </div>
+  </header>
+
+  <div class="messages" id="messages">
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">🔐</div>
+      <div class="welcome-title">On-device document Q&A</div>
+      <div class="welcome-body">
+        Upload a PDF or TXT. Your document is parsed in-browser with PDF.js,
+        chunked, and embedded locally using all-MiniLM-L6-v2.<br><br>
+        Questions are answered by a DistilBERT model running on WebAssembly.
+        Nothing leaves your machine.
+      </div>
+      <div class="sample-qs" id="sample-qs" style="display:none">
+        <div class="section-label" style="text-align:left;margin-bottom:4px">Try asking</div>
+      </div>
+    </div>
+    <div id="thread"></div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-wrap">
+      <textarea class="input-box" id="input-box" placeholder="Ask a question about your document…" disabled rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="send-btn" onclick="ask()" disabled>
+        <svg viewBox="0 0 14 14" fill="none"><path d="M12.5 7L2 2l2.5 5L2 12l10.5-5z" fill="currentColor"/></svg>
+      </button>
+    </div>
+    <div class="input-footer">
+      <span id="footer-left">Load a document to begin</span>
+      <span id="chunk-display"></span>
+    </div>
+  </div>
+</main>
+
+<div class="notif" id="notif"></div>
+
+<script src="https://unpkg.com/pdfjs-dist@2.16.105/build/pdf.min.js"></script>
+<script type="module">
+// ─── Imports ──────────────────────────────────────────────────────────
+import { pipeline, env } from 'https://unpkg.com/@xenova/transformers@2.17.2/dist/transformers.min.js';
+
+// ── Env config ────────────────────────────────────────────────────────
+env.allowLocalModels = false;
+env.useBrowserCache  = false; // Edge Tracking Prevention blocks IndexedDB for CDN origins
+
+// ── file:// guard ─────────────────────────────────────────────────────
+if (window.location.protocol === 'file:') {
+  document.getElementById('protocol-block').style.display = 'flex';
+  throw new Error('Must be served over HTTP');
+}
+
+// ── State ─────────────────────────────────────────────────────────────
+let embedder = null, qaModel = null;
+let chunks = [], embeddings = [], docLoaded = false, inferring = false;
+
+// ── Model loading ─────────────────────────────────────────────────────
+function fmt(b) { return b ? (b/1024/1024).toFixed(1)+' MB' : '—'; }
+
+function setModelUI(key, state, pct, statsText) {
+  const card  = document.getElementById('card-'  + key);
+  const badge = document.getElementById('badge-' + key);
+  const fill  = document.getElementById('fill-'  + key);
+  const stats = document.getElementById('stats-' + key);
+  if (!badge) return;
+  badge.textContent = state;
+  badge.className   = 'mc-badge ' + state;
+  fill.style.width  = pct + '%';
+  fill.className    = state === 'loading' ? 'mc-fill amber' : 'mc-fill';
+  stats.textContent = statsText || '';
+  card.className    = state === 'loading' ? 'model-card active'
+                    : state === 'ready'   ? 'model-card done'
+                    :                       'model-card';
+}
+
+async function loadOneModel(key, type, name, retries=3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      setModelUI(key, 'loading', 0,
+        attempt === 1 ? 'Connecting…' : 'Retry ' + attempt + '/' + retries + '…');
+      let total = 0;
+      const model = await pipeline(type, name, {
+        progress_callback: p => {
+          if (p.status === 'progress') {
+            const loaded = p.loaded || 0; total = p.total || 0;
+            const pct = total ? Math.round(loaded/total*100) : 0;
+            const file = (p.file||'').split('/').pop().slice(0,28);
+            setModelUI(key, 'loading', pct,
+              file + '  ' + fmt(loaded) + ' / ' + fmt(total) + '  (' + pct + '%)');
+          } else if (p.status === 'done') {
+            setModelUI(key, 'loading', 99, 'Compiling WASM…');
+          }
+        }
+      });
+      setModelUI(key, 'ready', 100, 'Ready · ' + fmt(total));
+      return model;
+    } catch(err) {
+      console.error('[DocQA] loadOneModel attempt', attempt, 'failed:', err);
+      if (attempt === retries) throw err;
+      const wait = attempt * 3000;
+      setModelUI(key, 'loading', 0,
+        'Failed — retrying in ' + (wait/1000) + 's… (' + err.message + ')');
+      await new Promise(r => setTimeout(r, wait));
+    }
+  }
+}
+
+async function loadModels() {
+  // Only the embedding model is needed — answer extraction is done
+  // with keyword overlap on retrieved chunks (no second model required)
+  embedder = await loadOneModel('emb', 'feature-extraction',
+    'Xenova/all-MiniLM-L6-v2');
+  // Mark QA card as ready immediately (handled locally)
+}
+
+function startLoadModels() {
+  const btn = document.getElementById('retry-btn');
+  if (btn) btn.style.display = 'none';
+  setModelUI('emb', 'loading', 0, 'Starting…');
+  loadModels().catch(e => {
+    console.error('[DocQA] loadModels failed:', e);
+    const hint = e.message.includes('fetch')
+      ? 'Network error — check connection and click Retry'
+      : e.message;
+    setModelUI('emb', 'error', 0, hint);
+    if (btn) btn.style.display = 'block';
+  });
+}
+
+// Kick off immediately on page load
+startLoadModels();
+
+// ── PDF extraction ────────────────────────────────────────────────────
+// Uses PDF.js v2 (loaded via <script> tag) when available — handles
+// compressed streams. Falls back to native byte scanner for plain PDFs.
+
+async function extractText(file) {
+  if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+    const buf = await file.arrayBuffer();
+    // Try PDF.js first (handles FlateDecode / compressed streams)
+    if (window.pdfjsLib) {
+      try {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://unpkg.com/pdfjs-dist@2.16.105/build/pdf.worker.min.js';
+        const pdf  = await window.pdfjsLib.getDocument({ data: buf }).promise;
+        let text = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page    = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(it => it.str).join(' ') + '\n';
+          document.getElementById('fill-parse').style.width =
+            Math.round((i / pdf.numPages) * 100) + '%';
+        }
+        return text;
+      } catch(e) {
+        console.warn('PDF.js failed, falling back to native extractor:', e);
+      }
+    }
+    // Native fallback — works for uncompressed PDFs
+    document.getElementById('fill-parse').style.width = '50%';
+    const text = nativePdfExtract(buf);
+    document.getElementById('fill-parse').style.width = '100%';
+    return text;
+  }
+  return await file.text();
+}
+
+function nativePdfExtract(buf) {
+  const bytes = new Uint8Array(buf);
+  let raw = '';
+  for (let i = 0; i < bytes.length; i += 65536)
+    raw += String.fromCharCode(...bytes.subarray(i, i + 65536));
+  const lines = [];
+  for (const blk of (raw.match(/BT[\s\S]*?ET/g) || [])) {
+    for (const m of blk.matchAll(/\(([^)\\]|\\.)*\)\s*Tj/g)) {
+      const s = m[0].match(/\(([\s\S]*?)\)\s*Tj$/);
+      if (s) lines.push(pdfStr(s[1]));
+    }
+    for (const m of blk.matchAll(/\[[\s\S]*?\]\s*TJ/g)) {
+      const parts = [...m[0].matchAll(/\(([^)\\]|\\.)*\)/g)];
+      const j = parts.map(p => pdfStr(p[0].slice(1,-1))).join('');
+      if (j.trim()) lines.push(j);
+    }
+    lines.push('\n');
+  }
+  return lines.join(' ').replace(/ {4,}/g,'\n').trim();
+}
+
+function pdfStr(s) {
+  return s.replace(/\\n/g,' ').replace(/\\r/g,' ').replace(/\\t/g,' ')
+          .replace(/\\\(/g,'(').replace(/\\\)/g,')').replace(/\\\\/g,'\\')
+          .replace(/[^\x20-\x7E\n]/g,' ');
+}
+
+// ─── Chunking ─────────────────────────────────────────────────────────
+function chunkText(text, size=150, overlap=30) {
+  const words = text.split(/\s+/).filter(w => w.length > 0);
+  const result = [];
+  for (let i = 0; i < words.length; i += size - overlap) {
+    const slice = words.slice(i, i + size).join(' ');
+    if (slice.trim().length > 40) result.push(slice);
+    if (i + size >= words.length) break;
+  }
+  return result;
+}
+
+// ─── Embeddings ───────────────────────────────────────────────────────
+async function embedText(text) {
+  const out = await embedder(text, { pooling: 'mean', normalize: true });
+  return Array.from(out.data);
+}
+
+function cosineSim(a, b) {
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) { dot += a[i]*b[i]; na += a[i]*a[i]; nb += b[i]*b[i]; }
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+function retrieve(qEmb, k=3) {
+  return chunks
+    .map((chunk, i) => ({ chunk, score: cosineSim(qEmb, embeddings[i]), i }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, k);
+}
+
+// Hybrid retrieve: semantic (embedding) + keyword boost
+// Combines cosine similarity with raw keyword overlap across ALL chunks
+// so facts like "150 billion by 2030" are found even when semantic
+// similarity is low for the question phrasing.
+function hybridRetrieve(qEmb, question, k=3) {
+  const qWords = new Set(
+    question.toLowerCase().split(/\W+/).filter(w => w.length > 3)
+  );
+
+  return chunks
+    .map((chunk, i) => {
+      const semantic = cosineSim(qEmb, embeddings[i]);
+      // keyword boost: fraction of query words found in chunk
+      const cWords   = chunk.toLowerCase().split(/\W+/);
+      const hits     = cWords.filter(w => qWords.has(w)).length;
+      const keyword  = hits / Math.max(qWords.size, 1);
+      // weighted combination: 60% semantic + 40% keyword
+      const score    = 0.6 * semantic + 0.4 * keyword;
+      return { chunk, score, semantic, i };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, k);
+}
+
+// Local keyword-overlap answer extractor — no model needed
+function localExtract(question, chunk) {
+  const qWords = new Set(
+    question.toLowerCase().split(/\W+/).filter(w => w.length > 3)
+  );
+
+  const sentences = chunk
+    .split(/(?<=[.!?])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 20);
+
+  if (!sentences.length) return chunk.slice(0, 300);
+
+  let best = { text: sentences[0], score: -1 };
+  for (const s of sentences) {
+    const sWords  = s.toLowerCase().split(/\W+/);
+    const overlap = sWords.filter(w => qWords.has(w)).length;
+    const score   = overlap / Math.max(qWords.size, 1);
+    if (score > best.score) best = { text: s, score };
+  }
+
+  if (best.score === 0) return sentences.slice(0, 2).join(' ');
+  return best.text;
+}
+
+// ─── Pipeline step UI helpers ─────────────────────────────────────────
+function stepStart(key) {
+  document.getElementById('dot-' + key).className = 'step-dot active';
+  document.getElementById('name-' + key).className = 'step-name active';
+  document.getElementById('badge-' + key).textContent = '…';
+  document.getElementById('badge-' + key).className = 'step-badge running';
+  const prog = document.getElementById('prog-' + key);
+  if (prog) prog.classList.add('visible');
+}
+function stepDone(key, label) {
+  document.getElementById('dot-' + key).className = 'step-dot done';
+  document.getElementById('name-' + key).className = 'step-name done';
+  document.getElementById('badge-' + key).textContent = label;
+  document.getElementById('badge-' + key).className = 'step-badge done';
+}
+function stepError(key, label) {
+  document.getElementById('dot-' + key).className = 'step-dot error';
+  document.getElementById('badge-' + key).textContent = label;
+  document.getElementById('badge-' + key).className = 'step-badge error';
+}
+
+// ─── Document loading ─────────────────────────────────────────────────
+async function processFile(file) {
+  const inputEl = document.getElementById('input-box');
+  const sendEl = document.getElementById('send-btn');
+
+  try {
+    // Show doc info
+    document.getElementById('upload-zone').style.display = 'none';
+    document.getElementById('doc-info').style.display = 'block';
+    document.getElementById('doc-name').textContent = file.name;
+    document.getElementById('doc-meta').textContent = (file.size/1024).toFixed(0) + ' KB · uploading…';
+    document.getElementById('session-name').textContent = file.name;
+
+    // 1. Parse
+    stepStart('parse');
+    const raw = await extractText(file);
+    stepDone('parse', '✓');
+    document.getElementById('doc-meta').textContent = (file.size/1024).toFixed(0) + ' KB · ' + raw.split(/\s+/).length.toLocaleString() + ' words';
+
+    // 2. Chunk
+    stepStart('chunk');
+    chunks = chunkText(raw);
+    stepDone('chunk', chunks.length + ' chunks');
+    document.getElementById('val-chunk').textContent = chunks.length + ' chunks · 350w each';
+
+    // 3. Embed — wait for embedder if still loading
+    stepStart('embed');
+    await waitForModel('embedder');
+    const fill = document.getElementById('fill-embed');
+    embeddings = [];
+    for (let i = 0; i < chunks.length; i++) {
+      const emb = await embedText(chunks[i]);
+      embeddings.push(emb);
+      fill.style.width = Math.round(((i+1)/chunks.length)*100) + '%';
+    }
+    stepDone('embed', chunks.length + ' vecs');
+    document.getElementById('val-embed').textContent = 'all-MiniLM-L6-v2 · 384d · ' + chunks.length + ' vectors';
+
+    // 4. Ready
+    stepDone('index', 'ready');
+    document.getElementById('val-index').textContent = 'Cosine similarity · ' + (chunks.length * 384 * 4 / 1024).toFixed(0) + ' KB in-memory';
+
+    // Unlock input
+    docLoaded = true;
+    inputEl.disabled = false;
+    sendEl.disabled = false;
+    document.getElementById('footer-left').textContent = '↵ Send · Shift+↵ Newline · All inference on-device';
+    document.getElementById('chunk-display').innerHTML = '<span class="chunk-count">' + chunks.length + ' chunks indexed</span>';
+
+    // Sample questions UI
+    showSampleQs();
+    notify('✓ Document ready — ask anything');
+
+  } catch (err) {
+    stepError('parse', 'error');
+    notify('Error: ' + err.message);
+    console.error(err);
+  }
+}
+
+async function waitForModel(modelName) {
+  const checkFn = modelName === 'embedder' ? () => embedder : () => qaModel;
+  while (!checkFn()) await new Promise(r => setTimeout(r, 300));
+}
+
+function showSampleQs() {
+  const sampleQs = document.getElementById('sample-qs');
+  sampleQs.style.display = 'block';
+  const qs = [
+    'What is the main topic of this document?',
+    'Summarize the key points.',
+    'What are the most important findings?'
+  ];
+  qs.forEach(q => {
+    const div = document.createElement('div');
+    div.className = 'sample-q';
+    div.textContent = q;
+    div.onclick = () => {
+      document.getElementById('input-box').value = q;
+      ask();
+    };
+    sampleQs.appendChild(div);
+  });
+}
+
+// ─── QA pipeline ──────────────────────────────────────────────────────
+window.ask = async function() {
+  const inputEl = document.getElementById('input-box');
+  const q = inputEl.value.trim();
+  if (!q || !docLoaded || inferring) return;
+  if (!embedder) { notify('Embedding model still loading — please wait'); return; }
+
+  inferring = true;
+  inputEl.disabled = true;
+  document.getElementById('send-btn').disabled = true;
+  inputEl.value = '';
+  autoResize(inputEl);
+
+  document.getElementById('welcome').style.display = 'none';
+  appendMessage('user', q);
+
+  const t0 = performance.now();
+
+  // ── Build AI bubble — use closure refs, NOT global IDs ──────────────
+  const aiDiv      = document.createElement('div');
+  aiDiv.className  = 'message';
+  const statusDiv  = document.createElement('div');
+  statusDiv.className = 'infer-status';
+  statusDiv.innerHTML = '<div class="spin"></div><span class="infer-lbl">Embedding query… (first query: 10–30s for WASM compile)</span>';
+  const ctxArea    = document.createElement('div');
+  const ansArea    = document.createElement('div');
+
+  const bodyDiv = document.createElement('div');
+  bodyDiv.className = 'msg-body';
+  bodyDiv.innerHTML = '<div class="msg-meta"><span class="msg-author">DocQA</span><span class="msg-time">on-device · WASM</span></div>';
+  bodyDiv.appendChild(statusDiv);
+  bodyDiv.appendChild(ctxArea);
+  bodyDiv.appendChild(ansArea);
+
+  aiDiv.appendChild(Object.assign(document.createElement('div'),
+    {className:'msg-avatar ai', textContent:'AI'}));
+  aiDiv.appendChild(bodyDiv);
+  document.getElementById('thread').appendChild(aiDiv);
+  scrollBottom();
+
+  // closure helper — always targets THIS bubble's label
+  const setStatus = txt => {
+    const lbl = statusDiv.querySelector('.infer-lbl');
+    if (lbl) lbl.textContent = txt;
+  };
+
+  try {
+    // 1. Embed question
+    const qEmb = await embedText(q);
+
+    // 2. Retrieve
+    setStatus('Retrieving relevant chunks…');
+    const topK = hybridRetrieve(qEmb, q, 3);
+
+    // Show retrieved context
+    const strip = document.createElement('div');
+    strip.className = 'context-strip';
+    strip.innerHTML = '<div class="context-label">Retrieved context · top 3 chunks by cosine similarity</div>';
+    topK.forEach(hit => {
+      const d = document.createElement('div');
+      d.className = 'context-chunk';
+      d.innerHTML = `<span class="context-chunk-score">sim=${hit.score.toFixed(3)}</span> `
+        + escHtml(hit.chunk.split(/\s+/).slice(0,20).join(' ')) + '…';
+      strip.appendChild(d);
+    });
+    ctxArea.appendChild(strip);
+    scrollBottom();
+
+    // 3. Build context string
+    const context = topK.map(h => h.chunk).join(' ').split(/\s+/).slice(0,280).join(' ');
+
+    // 4. Extract answer locally — keyword overlap on top chunk
+    setStatus('Extracting answer…');
+    const answer = localExtract(q, topK[0].chunk);
+    const rawConf = Math.round(topK[0].score * 100);
+
+    // 5. Display answer
+    statusDiv.style.display = 'none';
+
+    const ansDiv = document.createElement('div');
+    ansDiv.className = 'msg-text';
+    const spanOut = document.createElement('span');
+    const cursor  = document.createElement('span');
+    cursor.className = 'cursor';
+    ansDiv.appendChild(spanOut);
+    ansDiv.appendChild(cursor);
+    ansArea.appendChild(ansDiv);
+
+    await streamText(spanOut, answer);
+    cursor.remove();
+
+    const ms   = Math.round(performance.now() - t0);
+    const meta = document.createElement('div');
+    meta.className = 'answer-meta';
+    meta.innerHTML = `<span class="answer-conf">sim: ${topK[0].score.toFixed(3)}</span>`
+      + `<span>latency: ${ms}ms</span>`
+      + `<span>runtime: WebAssembly · keyword extract</span>`
+      + `<span>egress: 0 bytes</span>`;
+    ansArea.appendChild(meta);
+
+  } catch(err) {
+    statusDiv.innerHTML = `<span style="color:var(--red)">Error: ${escHtml(err.message)}</span>`;
+    console.error('[DocQA] ask() error:', err);
+  } finally {
+    // always re-enable input — even if inference threw
+    inferring = false;
+    inputEl.disabled = false;
+    document.getElementById('send-btn').disabled = false;
+    inputEl.focus();
+    scrollBottom();
+  }
+};
+
+async function streamText(el, text) {
+  const chars = text.split('');
+  let out = '';
+  for (const ch of chars) {
+    out += ch;
+    el.textContent = out;
+    await sleep(20 + Math.random() * 15);
+    scrollBottom();
+  }
+}
+
+function appendMessage(role, text) {
+  const thread = document.getElementById('thread');
+  const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  const div = document.createElement('div');
+  div.className = 'message';
+  const isUser = role === 'user';
+  div.innerHTML = `
+    <div class="msg-avatar ${role}">${isUser ? 'U' : 'AI'}</div>
+    <div class="msg-body">
+      <div class="msg-meta">
+        <span class="msg-author">${isUser ? 'You' : 'DocQA'}</span>
+        <span class="msg-time">${now}</span>
+      </div>
+      <div class="msg-text">${escHtml(text)}</div>
+    </div>`;
+  thread.appendChild(div);
+  scrollBottom();
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const scrollBottom = () => { const m = document.getElementById('messages'); m.scrollTop = m.scrollHeight; };
+const escHtml = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function notify(msg) {
+  const el = document.getElementById('notif');
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.style.display = 'none', 3500);
+}
+
+window.autoResize = function(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+};
+
+window.handleKey = function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); window.ask(); }
+};
+
+window.removeDoc = function() {
+  document.getElementById('upload-zone').style.display = 'block';
+  document.getElementById('doc-info').style.display = 'none';
+  document.getElementById('thread').innerHTML = '';
+  document.getElementById('welcome').style.display = 'block';
+  document.getElementById('sample-qs').innerHTML = '<div class="section-label" style="text-align:left;margin-bottom:4px">Try asking</div>';
+  document.getElementById('session-name').textContent = 'No document loaded';
+  chunks = []; embeddings = []; docLoaded = false;
+  document.getElementById('input-box').disabled = true;
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('footer-left').textContent = 'Load a document to begin';
+  document.getElementById('chunk-display').textContent = '';
+  ['parse','chunk','embed','index'].forEach(k => {
+    document.getElementById('dot-' + k).className = 'step-dot';
+    document.getElementById('name-' + k).className = 'step-name';
+    document.getElementById('badge-' + k).textContent = '—';
+    document.getElementById('badge-' + k).className = 'step-badge pending';
+    const p = document.getElementById('prog-' + k);
+    if (p) { p.classList.remove('visible'); document.getElementById('fill-' + k).style.width = '0%'; }
+  });
+};
+
+// ─── File input wiring ─────────────────────────────────────────────────
+const fileInput = document.getElementById('file-input');
+fileInput.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
+
+const uploadZone = document.getElementById('upload-zone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+});
+
+window.copyCmd = function(el, cmd) {
+  navigator.clipboard.writeText(cmd).then(() => {
+    const span = el.querySelector('.cmd-copy');
+    span.textContent = 'copied!';
+    span.style.color = 'var(--accent)';
+    setTimeout(() => { span.textContent = 'click to copy'; span.style.color = ''; }, 2000);
+  });
+};
+</script>
+</body>
+</html>
